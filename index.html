@@ -1,0 +1,1212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crontab 任务管理器</title>
+  <!-- Tailwind CSS  暂时CDN加载 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          animation: {
+            'fade-in': 'fadeIn 0.5s ease-out',
+            'slide-up': 'slideUp 0.4s ease-out',
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'bounce-slow': 'bounce 2s infinite',
+            'spin-slow': 'spin 3s linear infinite',
+            'ripple': 'ripple 600ms linear',
+            'wave': 'wave 1.5s ease-in-out infinite',
+          },
+          keyframes: {
+            fadeIn: {
+              '0%': { opacity: '0', transform: 'translateY(10px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' }
+            },
+            slideUp: {
+              '0%': { opacity: '0', transform: 'translateY(20px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' }
+            },
+            pulse: {
+              '0%, 100%': { opacity: '1' },
+              '50%': { opacity: '0.5' }
+            },
+            ripple: {
+              'to': { transform: 'scale(3)', opacity: '0' }
+            },
+            wave: {
+              '0%, 100%': { transform: 'rotate(0deg)' },
+              '25%': { transform: 'rotate(5deg)' },
+              '75%': { transform: 'rotate(-5deg)' }
+            }
+          },
+          spacing: {
+            '4.5': '1.125rem',
+            '5.5': '1.375rem',
+            '7.5': '1.875rem',
+            '18': '4.5rem'
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Font Awesome 暂时CDN加载 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* 自定义增强样式 */
+    .task-row {
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    .task-row:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .dark .task-row:hover {
+      box-shadow: 0 4px 12px rgba(255, 255, 255, 0.08);
+    }
+
+    .btn {
+      position: relative;
+      overflow: hidden;
+      transform: translateZ(0);
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .dark .btn:hover {
+      box-shadow: 0 4px 8px rgba(255, 255, 255, 0.1);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .card {
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    }
+
+    .dark .card:hover {
+      box-shadow: 0 10px 25px rgba(255, 255, 255, 0.1);
+    }
+
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background-color: rgba(255, 255, 255, 0.4);
+      transform: scale(0);
+      animation: ripple 600ms linear;
+      pointer-events: none;
+    }
+
+    .dark .ripple {
+      background-color: rgba(0, 0, 0, 0.4);
+    }
+
+    .glow {
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+    }
+
+    .text-gradient {
+      background-clip: text;
+      -webkit-background-clip: text;
+      color: transparent;
+    }
+
+    .status-badge {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .status-badge::after {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: linear-gradient(to bottom right,
+          rgba(255, 255, 255, 0.3),
+          rgba(255, 255, 255, 0.1),
+          rgba(255, 255, 255, 0));
+      transform: rotate(30deg);
+      animation: shine 3s infinite;
+    }
+
+    .dark .status-badge::after {
+      background: linear-gradient(to bottom right,
+          rgba(0, 0, 0, 0.3),
+          rgba(0, 0, 0, 0.1),
+          rgba(0, 0, 0, 0));
+    }
+
+    @keyframes shine {
+      0% {
+        transform: translateX(-100%) rotate(30deg);
+      }
+
+      100% {
+        transform: translateX(100%) rotate(30deg);
+      }
+    }
+
+    .text-truncate {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stat-card {
+      min-height: 5.5rem;
+    }
+
+    /* 暗黑模式特定样式 */
+    .dark body {
+      background: linear-gradient(to bottom right, #111827, #1f2937);
+      color: #e5e7eb;
+    }
+
+    .dark .card,
+    .dark .stat-card,
+    .dark .card-header {
+      background-color: #1f2937;
+      border-color: #374151;
+      color: #e5e7eb;
+    }
+
+    .dark .card-header {
+      border-color: #374151;
+    }
+
+    .dark table {
+      color: #e5e7eb;
+    }
+
+    .dark thead {
+      background-color: #111827;
+    }
+
+    .dark th {
+      color: #e5e7eb;
+      border-color: #374151;
+    }
+
+    .dark td {
+      border-color: #374151;
+    }
+
+    .dark .task-row:hover {
+      background-color: #1f2937;
+    }
+
+    .dark input[type="text"],
+    .dark input[type="checkbox"],
+    .dark textarea {
+      background-color: #1f2937;
+      border-color: #374151;
+      color: #e5e7eb;
+    }
+
+    .dark input[type="text"]:focus,
+    .dark textarea:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+    }
+
+    .dark .form-checkbox {
+      border-color: #4b5563;
+    }
+
+    .dark .form-checkbox:checked {
+      background-color: #3b82f6;
+      border-color: #3b82f6;
+    }
+
+    .dark .bg-gray-100 {
+      background-color: #374151;
+      color: #e5e7eb;
+    }
+
+    .dark .text-gray-700,
+    .dark .text-gray-800 {
+      color: #e5e7eb;
+    }
+
+    .dark .text-gray-500 {
+      color: #9ca3af;
+    }
+
+    .dark .border-gray-200,
+    .dark .border-gray-300 {
+      border-color: #374151;
+    }
+
+    .dark .divide-gray-200 {
+      border-color: #374151;
+    }
+
+    .dark .hover\:bg-gray-50:hover {
+      background-color: #1f2937;
+    }
+
+    .dark .bg-white {
+      background-color: #1f2937;
+    }
+
+    .dark .bg-blue-50 {
+      background-color: #1e3a8a;
+      border-color: #1e40af;
+    }
+
+    .dark .text-blue-800 {
+      color: #93c5fd;
+    }
+
+    .dark .text-blue-700 {
+      color: #bfdbfe;
+    }
+
+    .dark .bg-gray-200 {
+      background-color: #374151;
+    }
+
+    .dark .hover\:bg-gray-300:hover {
+      background-color: #4b5563;
+    }
+
+    /* 自定义滚动条样式 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(156, 163, 175, 0.5);
+      border-radius: 3px;
+      transition: background 0.2s;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(156, 163, 175, 0.7);
+    }
+
+    .dark ::-webkit-scrollbar-thumb {
+      background: rgba(107, 114, 128, 0.5);
+    }
+
+    .dark ::-webkit-scrollbar-thumb:hover {
+      background: rgba(107, 114, 128, 0.7);
+    }
+
+    /* 统计卡片边框颜色修复 */
+    .dark .stat-card.border-blue-500 {
+      border-color: #3b82f6;
+    }
+
+    .dark .stat-card.border-green-500 {
+      border-color: #10b981;
+    }
+
+    .dark .stat-card.border-yellow-500 {
+      border-color: #f59e0b;
+    }
+
+    .dark .stat-card.border-red-500 {
+      border-color: #ef4444;
+    }
+  </style>
+</head>
+
+<body
+  class="bg-gradient-to-br from-gray-50 to-gray-100 dark:bg-gradient-to-br dark:from-gray-900 dark:to-gray-800 min-h-screen">
+
+  <div class="container mx-auto p-4 lg:p-6">
+    <!-- 标题和状态 -->
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 animate-slide-up">
+      <div class="mb-4 md:mb-0">
+        <h1 class="text-2xl md:text-3xl font-bold text-gray-800 dark:text-gray-200 flex items-center">
+          <i class="fas fa-clock mr-3 text-blue-500 animate-wave"></i>
+          <span class="bg-gradient-to-r from-blue-500 to-purple-600 text-gradient">Crontab 任务管理器</span>
+        </h1>
+        <p class="text-gray-500 dark:text-gray-400 mt-1 text-sm md:text-base">高效管理您的定时任务</p>
+      </div>
+      <div class="flex items-center space-x-2">
+        <span
+          class="px-3 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full text-sm flex items-center">
+          <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse-slow"></span>
+          系统运行中
+        </span>
+        <button id="dark-mode-toggle"
+          class="p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200">
+          <i class="fas fa-moon dark:hidden"></i>
+          <i class="fas fa-sun hidden dark:block"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 grid-auto-rows-1fr">
+      <!-- 左侧任务列表区域 -->
+      <div class="lg:col-span-2 space-y-6">
+        <!-- 统计卡片 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 animate-fade-in">
+          <div
+            class="stat-card bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border-l-4 border-blue-500 hover:glow transition-all">
+            <div class="flex items-center justify-between h-full">
+              <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs md:text-sm">总任务数</p>
+                <h3 class="text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-200">24</h3>
+              </div>
+              <i class="fas fa-tasks text-blue-400 text-xl md:text-2xl"></i>
+            </div>
+          </div>
+          <div class="stat-card bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border-l-4 border-green-500">
+            <div class="flex items-center justify-between h-full">
+              <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs md:text-sm">运行中</p>
+                <h3 class="text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-200">18</h3>
+              </div>
+              <i class="fas fa-play-circle text-green-400 text-xl md:text-2xl"></i>
+            </div>
+          </div>
+          <div class="stat-card bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border-l-4 border-yellow-500">
+            <div class="flex items-center justify-between h-full">
+              <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs md:text-sm">已暂停</p>
+                <h3 class="text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-200">3</h3>
+              </div>
+              <i class="fas fa-pause-circle text-yellow-400 text-xl md:text-2xl"></i>
+            </div>
+          </div>
+          <div class="stat-card bg-white dark:bg-gray-800 rounded-xl shadow-sm p-4 border-l-4 border-red-500">
+            <div class="flex items-center justify-between h-full">
+              <div>
+                <p class="text-gray-500 dark:text-gray-400 text-xs md:text-sm">失败</p>
+                <h3 class="text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-200">3</h3>
+              </div>
+              <i class="fas fa-exclamation-circle text-red-400 text-xl md:text-2xl"></i>
+            </div>
+          </div>
+        </div>
+
+        <!-- 任务列表卡片 -->
+        <div class="card bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden animate-slide-up flex-grow">
+          <div
+            class="card-header bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 py-3 px-4 md:px-6 flex flex-col md:flex-row items-start md:items-center justify-between">
+            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center mb-2 md:mb-0">
+              <i class="fas fa-list-ul text-blue-500 mr-2"></i>
+              定时任务列表
+            </h3>
+            <div class="relative w-full md:w-auto">
+              <input type="text" placeholder="搜索任务..."
+                class="w-full md:w-64 pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+              <i class="fas fa-search absolute left-3 top-2.5 text-gray-400"></i>
+            </div>
+          </div>
+          <div class="card-body p-0 overflow-auto">
+            <div class="overflow-x-auto">
+              <table class="w-full">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th class="w-12 p-3 text-center">
+                      <input type="checkbox"
+                        class="form-checkbox rounded text-blue-500 border-gray-300 dark:border-gray-600">
+                    </th>
+                    <th class="p-3 text-left font-medium text-gray-700 dark:text-gray-300">任务名称</th>
+                    <th class="p-3 text-left text-gray-700 dark:text-gray-300 whitespace-nowrap">执行时间</th>
+                    <th class="p-3 text-left text-gray-700 dark:text-gray-300">命令</th>
+                    <th class="p-3 text-left text-gray-700 dark:text-gray-300 whitespace-nowrap">状态</th>
+                    <th class="w-32 p-3 text-left text-gray-700 dark:text-gray-300">操作</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                  <!-- 示例任务行 -->
+                  <tr class="task-row bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="p-3 text-center">
+                      <input type="checkbox"
+                        class="form-checkbox rounded text-blue-500 border-gray-300 dark:border-gray-600 task-checkbox">
+                    </td>
+                    <td class="p-3 font-medium text-gray-800 dark:text-gray-200 flex items-center">
+                      <i class="fas fa-database text-blue-400 mr-2"></i>
+                      <span class="truncate max-w-xs">正在加载</span>
+                    </td>
+                    <td class="p-3">
+                      <div class="flex flex-col md:flex-row md:items-center">
+                        <code
+                          class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs md:text-sm font-mono whitespace-nowrap">正在加载</code>
+                        <span
+                          class="mt-1 md:mt-0 md:ml-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">正在加载</span>
+                      </div>
+                    </td>
+                    <td class="p-3 max-w-xs">
+                      <div class="text-truncate dark:text-gray-300" title="正在加载">
+                        正在加载
+                      </div>
+                    </td>
+                    <td class="p-3">
+                      <span
+                        class="status-badge bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2.5 py-1 rounded-full text-xs md:text-sm font-medium inline-flex items-center whitespace-nowrap">
+                        <span class="w-2 h-2 bg-green-500 rounded-full mr-1.5 animate-pulse-slow"></span>
+                        正在加载
+                      </span>
+                    </td>
+                    <td class="p-3">
+                      <div class="flex space-x-1.5">
+                        <button
+                          class="btn bg-blue-500 hover:bg-blue-600 text-white p-1.5 md:p-2 rounded-lg transition-all"
+                          title="编辑">
+                          <i class="fas fa-pencil-alt text-xs md:text-sm"></i>
+                        </button>
+                        <button
+                          class="btn bg-purple-500 hover:bg-purple-600 text-white p-1.5 md:p-2 rounded-lg transition-all"
+                          title="查看日志">
+                          <i class="fas fa-history text-xs md:text-sm"></i>
+                        </button>
+                        <button
+                          class="btn bg-yellow-500 hover:bg-yellow-600 text-white p-1.5 md:p-2 rounded-lg transition-all"
+                          title="暂停">
+                          <i class="fas fa-pause text-xs md:text-sm"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr class="task-row bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="p-3 text-center">
+                      <input type="checkbox"
+                        class="form-checkbox rounded text-blue-500 border-gray-300 dark:border-gray-600 task-checkbox">
+                    </td>
+                    <td class="p-3 font-medium text-gray-800 dark:text-gray-200 flex items-center">
+                      <i class="fas fa-trash-alt text-red-400 mr-2"></i>
+                      <span class="truncate max-w-xs">正在加载</span>
+                    </td>
+                    <td class="p-3">
+                      <div class="flex flex-col md:flex-row md:items-center">
+                        <code
+                          class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs md:text-sm font-mono whitespace-nowrap">正在加载</code>
+                        <span
+                          class="mt-1 md:mt-0 md:ml-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">正在加载</span>
+                      </div>
+                    </td>
+                    <td class="p-3 max-w-xs">
+                      <div class="text-truncate dark:text-gray-300" title="正在加载">
+                        正在加载
+                      </div>
+                    </td>
+                    <td class="p-3">
+                      <span
+                        class="status-badge bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 px-2.5 py-1 rounded-full text-xs md:text-sm font-medium inline-flex items-center whitespace-nowrap">
+                        <i class="fas fa-pause-circle mr-1.5 text-xs"></i>
+                        正在加载
+                      </span>
+                    </td>
+                    <td class="p-3">
+                      <div class="flex space-x-1.5">
+                        <button
+                          class="btn bg-blue-500 hover:bg-blue-600 text-white p-1.5 md:p-2 rounded-lg transition-all"
+                          title="编辑">
+                          <i class="fas fa-pencil-alt text-xs md:text-sm"></i>
+                        </button>
+                        <button
+                          class="btn bg-purple-500 hover:bg-purple-600 text-white p-1.5 md:p-2 rounded-lg transition-all"
+                          title="查看日志">
+                          <i class="fas fa-history text-xs md:text-sm"></i>
+                        </button>
+                        <button
+                          class="btn bg-green-500 hover:bg-green-600 text-white p-1.5 md:p-2 rounded-lg transition-all"
+                          title="启用">
+                          <i class="fas fa-play text-xs md:text-sm"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr class="task-row bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="p-3 text-center">
+                      <input type="checkbox"
+                        class="form-checkbox rounded text-blue-500 border-gray-300 dark:border-gray-600 task-checkbox">
+                    </td>
+                    <td class="p-3 font-medium text-gray-800 dark:text-gray-200 flex items-center">
+                      <i class="fas fa-sync-alt text-green-400 mr-2"></i>
+                      <span class="truncate max-w-xs">正在加载</span>
+                    </td>
+                    <td class="p-3">
+                      <div class="flex flex-col md:flex-row md:items-center">
+                        <code
+                          class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs md:text-sm font-mono whitespace-nowrap">正在加载</code>
+                        <span
+                          class="mt-1 md:mt-0 md:ml-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">正在加载</span>
+                      </div>
+                    </td>
+                    <td class="p-3 max-w-xs">
+                      <div class="text-truncate dark:text-gray-300" title="正在加载">
+                        正在加载
+                      </div>
+                    </td>
+                    <td class="p-3">
+                      <span
+                        class="status-badge bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2.5 py-1 rounded-full text-xs md:text-sm font-medium inline-flex items-center whitespace-nowrap">
+                        <span class="w-2 h-2 bg-green-500 rounded-full mr-1.5 animate-pulse-slow"></span>
+                        正在加载
+                      </span>
+                    </td>
+                    <td class="p-3">
+                      <div class="flex space-x-1.5">
+                        <button
+                          class="btn bg-blue-500 hover:bg-blue-600 text-white p-1.5 md:p-2 rounded-lg transition-all"
+                          title="编辑">
+                          <i class="fas fa-pencil-alt text-xs md:text-sm"></i>
+                        </button>
+                        <button
+                          class="btn bg-purple-500 hover:bg-purple-600 text-white p-1.5 md:p-2 rounded-lg transition-all"
+                          title="查看日志">
+                          <i class="fas fa-history text-xs md:text-sm"></i>
+                        </button>
+                        <button
+                          class="btn bg-yellow-500 hover:bg-yellow-600 text-white p-1.5 md:p-2 rounded-lg transition-all"
+                          title="暂停">
+                          <i class="fas fa-pause text-xs md:text-sm"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr class="task-row bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="p-3 text-center">
+                      <input type="checkbox"
+                        class="form-checkbox rounded text-blue-500 border-gray-300 dark:border-gray-600 task-checkbox">
+                    </td>
+                    <td class="p-3 font-medium text-gray-800 dark:text-gray-200 flex items-center">
+                      <i class="fas fa-chart-pie text-indigo-400 mr-2"></i>
+                      <span class="truncate max-w-xs">正在加载</span>
+                    </td>
+                    <td class="p-3">
+                      <div class="flex flex-col md:flex-row md:items-center">
+                        <code
+                          class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs md:text-sm font-mono whitespace-nowrap">正在加载</code>
+                        <span
+                          class="mt-1 md:mt-0 md:ml-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">正在加载
+                          正在加载</span>
+                      </div>
+                    </td>
+                    <td class="p-3 max-w-xs">
+                      <div class="text-truncate dark:text-gray-300" title="正在加载">
+                        正在加载
+                      </div>
+                    </td>
+                    <td class="p-3">
+                      <span
+                        class="status-badge bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2.5 py-1 rounded-full text-xs md:text-sm font-medium inline-flex items-center whitespace-nowrap">
+                        <i class="fas fa-exclamation-circle mr-1.5 text-xs"></i>
+                        正在加载
+                      </span>
+                    </td>
+                    <td class="p-3">
+                      <div class="flex space-x-1.5">
+                        <button
+                          class="btn bg-blue-500 hover:bg-blue-600 text-white p-1.5 md:p-2 rounded-lg transition-all"
+                          title="编辑">
+                          <i class="fas fa-pencil-alt text-xs md:text-sm"></i>
+                        </button>
+                        <button
+                          class="btn bg-purple-500 hover:bg-purple-600 text-white p-1.5 md:p-2 rounded-lg transition-all"
+                          title="查看日志">
+                          <i class="fas fa-history text-xs md:text-sm"></i>
+                        </button>
+                        <button
+                          class="btn bg-green-500 hover:bg-green-600 text-white p-1.5 md:p-2 rounded-lg transition-all"
+                          title="重试">
+                          <i class="fas fa-redo text-xs md:text-sm"></i>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div
+            class="card-footer bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 py-3 px-4 md:px-6 flex flex-col md:flex-row items-center justify-between">
+            <div class="text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-2 md:mb-0">
+              显示 <span class="font-medium">正在加载</span> 共 <span class="font-medium">正在加载</span> 个任务
+            </div>
+            <div class="flex space-x-1.5">
+              <button
+                class="btn bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-2.5 py-1 rounded-lg transition-all text-xs md:text-sm">
+                <i class="fas fa-angle-left"></i>
+              </button>
+              <button
+                class="btn bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg transition-all text-xs md:text-sm">
+                1
+              </button>
+              <button
+                class="btn bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-1 rounded-lg transition-all text-xs md:text-sm">
+                2
+              </button>
+              <button
+                class="btn bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-2.5 py-1 rounded-lg transition-all text-xs md:text-sm">
+                <i class="fas fa-angle-right"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右侧操作区域 -->
+      <div class="lg:col-span-1 space-y-5 flex flex-col h-full">
+        <!-- 操作按钮组 -->
+        <div class="card bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden animate-slide-up flex-grow">
+          <div
+            class="card-header bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 py-3 px-4 md:px-6">
+            <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center">
+              <i class="fas fa-cogs text-blue-500 mr-2"></i>
+              任务操作
+            </h3>
+          </div>
+          <div class="card-body p-3 md:p-4">
+            <div class="grid gap-2.5">
+              <button
+                class="btn bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white py-2.5 px-3 md:py-3 md:px-4 rounded-lg transition-all flex items-center justify-center shadow-md hover:shadow-lg"
+                id="add-task">
+                <i class="fas fa-plus-circle mr-2"></i>
+                <span class="text-sm md:text-base">新增定时任务</span>
+              </button>
+              <button
+                class="btn bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white py-2.5 px-3 md:py-3 md:px-4 rounded-lg transition-all flex items-center justify-center shadow-md disabled:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                id="delete-selected" disabled>
+                <i class="fas fa-trash mr-2"></i>
+                <span class="text-sm md:text-base">删除选定任务</span>
+              </button>
+              <button
+                class="btn bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white py-2.5 px-3 md:py-3 md:px-4 rounded-lg transition-all flex items-center justify-center shadow-md disabled:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                id="pause-selected" disabled>
+                <i class="fas fa-pause mr-2"></i>
+                <span class="text-sm md:text-base">暂停选定任务</span>
+              </button>
+              <button
+                class="btn bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-2.5 px-3 md:py-3 md:px-4 rounded-lg transition-all flex items-center justify-center shadow-md disabled:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                id="resume-selected" disabled>
+                <i class="fas fa-play mr-2"></i>
+                <span class="text-sm md:text-base">启用选定任务</span>
+              </button>
+              <button
+                class="btn bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white py-2.5 px-3 md:py-3 md:px-4 rounded-lg transition-all flex items-center justify-center shadow-md"
+                id="import-export">
+                <i class="fas fa-file-export mr-2"></i>
+                <span class="text-sm md:text-base">导入/导出配置</span>
+              </button>
+              <button
+                class="btn bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white py-2.5 px-3 md:py-3 md:px-4 rounded-lg transition-all flex items-center justify-center shadow-md"
+                id="settings">
+                <i class="fas fa-cog mr-2 animate-spin-slow"></i>
+                <span class="text-sm md:text-base">系统设置</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- 最近活动 -->
+    <div
+      class="card bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden animate-slide-up mt-6 ml-[-1rem] mr-[-1rem] lg:ml-[-1.5rem] lg:mr-[-1.5rem]">
+      <div
+        class="card-header bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 py-3 px-4 md:px-6">
+        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center">
+          <i class="fas fa-history text-blue-500 mr-2"></i>
+          最近活动
+        </h3>
+      </div>
+      <div class="card-body p-0 overflow-auto">
+        <ul class="divide-y divide-gray-200 dark:divide-gray-700">
+          <li class="p-3 md:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            <div class="flex items-start">
+              <div class="flex-shrink-0 bg-green-100 dark:bg-green-900 p-1.5 md:p-2 rounded-full">
+                <i class="fas fa-check-circle text-green-500 dark:text-green-400 text-sm md:text-base"></i>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm font-medium text-gray-800 dark:text-gray-200">数据库备份完成</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">2分钟前 - 执行成功</p>
+              </div>
+            </div>
+          </li>
+          <li class="p-3 md:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            <div class="flex items-start">
+              <div class="flex-shrink-0 bg-red-100 dark:bg-red-900 p-1.5 md:p-2 rounded-full">
+                <i class="fas fa-exclamation-circle text-red-500 dark:text-red-400 text-sm md:text-base"></i>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm font-medium text-gray-800 dark:text-gray-200">报表生成失败</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">1小时前 - 脚本错误</p>
+              </div>
+            </div>
+          </li>
+          <li class="p-3 md:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            <div class="flex items-start">
+              <div class="flex-shrink-0 bg-blue-100 dark:bg-blue-900 p-1.5 md:p-2 rounded-full">
+                <i class="fas fa-plus-circle text-blue-500 dark:text-blue-400 text-sm md:text-base"></i>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm font-medium text-gray-800 dark:text-gray-200">新增了数据同步任务</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">3小时前 - 由管理员添加</p>
+              </div>
+            </div>
+          </li>
+          <li class="p-3 md:p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            <div class="flex items-start">
+              <div class="flex-shrink-0 bg-yellow-100 dark:bg-yellow-900 p-1.5 md:p-2 rounded-full">
+                <i class="fas fa-pause-circle text-yellow-500 dark:text-yellow-400 text-sm md:text-base"></i>
+              </div>
+              <div class="ml-3">
+                <p class="text-sm font-medium text-gray-800 dark:text-gray-200">日志清理任务已暂停</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">昨天 - 由系统管理员操作</p>
+              </div>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 原有脚本 -->
+  <script src="https://down-gmb.oss-cn-zhangjiakou.aliyuncs.com/appWebJs/gmAppSdk.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      // 暗黑模式切换
+      const darkModeToggle = document.getElementById('dark-mode-toggle');
+      const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+
+      // 检查本地存储或系统偏好
+      if (localStorage.getItem('darkMode') === 'dark' ||
+        (!localStorage.getItem('darkMode') && prefersDarkScheme.matches)) {
+        document.documentElement.classList.add('dark');
+      }
+
+      // 切换暗黑模式
+      darkModeToggle.addEventListener('click', function () {
+        const isDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('darkMode', isDark ? 'dark' : 'light');
+      });
+
+      // 全选/取消全选功能
+      const selectAllCheckbox = document.querySelector('thead .form-checkbox');
+      const taskCheckboxes = document.querySelectorAll('.task-checkbox');
+      const deleteButton = document.getElementById('delete-selected');
+      const pauseButton = document.getElementById('pause-selected');
+      const resumeButton = document.getElementById('resume-selected');
+      const addTaskButton = document.getElementById('add-task');
+
+      // 任务复选框状态变化处理
+      function updateActionButtons() {
+        const checkedCount = document.querySelectorAll('.task-checkbox:checked').length;
+        const hasChecked = checkedCount > 0;
+
+        // 更新按钮状态
+        deleteButton.disabled = !hasChecked;
+        pauseButton.disabled = !hasChecked;
+        resumeButton.disabled = !hasChecked;
+
+        // 添加/移除活跃状态样式
+        [deleteButton, pauseButton, resumeButton].forEach(btn => {
+          if (btn.disabled) {
+            btn.classList.add('opacity-75');
+            btn.classList.remove('hover:shadow-lg');
+          } else {
+            btn.classList.remove('opacity-75');
+            btn.classList.add('hover:shadow-lg');
+          }
+        });
+      }
+
+      // 全选/取消全选
+      selectAllCheckbox.addEventListener('change', function () {
+        taskCheckboxes.forEach(checkbox => {
+          checkbox.checked = this.checked;
+        });
+        updateActionButtons();
+      });
+
+      // 单个任务复选框变化
+      taskCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateActionButtons);
+      });
+
+      // 按钮点击动画效果
+      const buttons = document.querySelectorAll('.btn');
+      buttons.forEach(button => {
+        button.addEventListener('click', function (e) {
+          if (!this.disabled) {
+            // 添加点击波纹效果
+            const x = e.clientX - e.target.getBoundingClientRect().left;
+            const y = e.clientY - e.target.getBoundingClientRect().top;
+            const ripple = document.createElement('span');
+            ripple.style.width = ripple.style.height = Math.max(e.target.offsetWidth, e.target.offsetHeight) + 'px';
+            ripple.style.left = x + 'px';
+            ripple.style.top = y + 'px';
+            ripple.classList.add('ripple');
+            this.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 600);
+          }
+        });
+      });
+
+      // 删除确认对话框
+      deleteButton.addEventListener('click', function () {
+        if (confirm('确定要删除选中的 ' + document.querySelectorAll('.task-checkbox:checked').length + ' 个任务吗？此操作不可恢复。')) {
+          // 这里添加删除逻辑
+          showNotification('任务已删除', 'success');
+        }
+      });
+
+      // 暂停按钮点击事件
+      pauseButton.addEventListener('click', function () {
+        showNotification('选中的任务已暂停', 'info');
+      });
+
+      // 启用按钮点击事件
+      resumeButton.addEventListener('click', function () {
+        showNotification('选中的任务已启用', 'success');
+      });
+
+      // 新增任务按钮点击事件
+      addTaskButton.addEventListener('click', function () {
+        // 添加新增任务的逻辑
+        showNotification('新增任务窗口已打开', 'info');
+
+        // 模拟打开模态框的动画
+        const modal = document.createElement('div');
+        modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 animate-fade-in';
+        modal.innerHTML = `
+          <div class="bg-white dark:bg-gray-800 rounded-xl p-4 md:p-6 max-w-md w-full mx-4 animate-slide-up">
+            <div class="flex justify-between items-center mb-3 md:mb-4">
+              <h3 class="text-lg md:text-xl font-bold text-gray-800 dark:text-gray-200">新增定时任务</h3>
+              <button class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 close-modal">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+            <div class="space-y-3 md:space-y-4">
+              <div>
+                <label class="block text-sm md:text-base font-medium text-gray-700 dark:text-gray-300 mb-1">任务名称</label>
+                <input type="text" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm md:text-base bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+              </div>
+              <div>
+                <label class="block text-sm md:text-base font-medium text-gray-700 dark:text-gray-300 mb-1">图标类名 (Font Awesome)</label>
+                <input type="text" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm md:text-base bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200" placeholder="例如: fa-calendar">
+              </div>
+              <div>
+                <label class="block text-sm md:text-base font-medium text-gray-700 dark:text-gray-300 mb-1">Cron 表达式</label>
+                <input type="text" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm md:text-base bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200" placeholder="* * * * *">
+              </div>
+              <div>
+                <label class="block text-sm md:text-base font-medium text-gray-700 dark:text-gray-300 mb-1">命令</label>
+                <textarea class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm md:text-base bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200" rows="3"></textarea>
+              </div>
+              <div class="flex justify-end space-x-2 md:space-x-3 pt-1 md:pt-2">
+                <button class="px-3 py-1.5 md:px-4 md:py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm md:text-base close-modal">取消</button>
+                <button class="px-3 py-1.5 md:px-4 md:py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm md:text-base">保存</button>
+              </div>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        // 关闭模态框
+        modal.querySelectorAll('.close-modal').forEach(btn => {
+          btn.addEventListener('click', () => {
+            modal.classList.add('opacity-0');
+            setTimeout(() => modal.remove(), 300);
+          });
+        });
+
+        // 保存任务
+        modal.querySelector('button:not(.close-modal)').addEventListener('click', () => {
+          const taskName = modal.querySelector('input[type="text"]').value;
+          const cronExpr = modal.querySelectorAll('input[type="text"]')[1].value;
+          const command = modal.querySelector('textarea').value;
+          const iconClass = modal.querySelectorAll('input[type="text"]')[2].value || 'fa-question-circle';
+
+          // 创建新任务行
+          const newRow = document.createElement('tr');
+          newRow.className = 'hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors bg-white dark:bg-gray-800';
+          newRow.innerHTML = `
+            <td class="py-3 px-4 border-b border-gray-200 dark:border-gray-700">
+              <div class="flex items-center">
+                <i class="fas ${iconClass} mr-2"></i>
+                <span class="text-gray-800 dark:text-gray-200">${taskName}</span>
+              </div>
+            </td>
+            <td class="py-3 px-4 border-b border-gray-200 dark:border-gray-700">
+              <div class="flex flex-col md:flex-row md:items-center">
+                <code class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs md:text-sm font-mono whitespace-nowrap">${cronExpr}</code>
+              </div>
+            </td>
+            <td class="py-3 px-4 border-b border-gray-200 dark:border-gray-700 max-w-xs truncate text-gray-800 dark:text-gray-200">${command}</td>
+            <td class="py-3 px-4 border-b border-gray-200 dark:border-gray-700">
+              <span class="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 rounded-full text-xs">运行中</span>
+            </td>
+            <td class="py-3 px-4 border-b border-gray-200 dark:border-gray-700">
+              <div class="flex space-x-2">
+                <button class="text-blue-500 hover:text-blue-700"><i class="fas fa-edit"></i></button>
+                <button class="text-gray-500 hover:text-gray-700"><i class="fas fa-history"></i></button>
+                <button class="text-yellow-500 hover:text-yellow-700"><i class="fas fa-pause"></i></button>
+              </div>
+            </td>
+          `;
+
+          // 添加到任务表
+          document.querySelector('table tbody').appendChild(newRow);
+
+          // 关闭模态框
+          modal.classList.add('opacity-0');
+          setTimeout(() => modal.remove(), 300);
+          showNotification('任务创建成功', 'success');
+        });
+      });
+
+      // 通知提示功能
+      function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        let bgColor = 'bg-blue-500';
+        let icon = 'fa-info-circle';
+
+        if (type === 'success') {
+          bgColor = 'bg-green-500';
+          icon = 'fa-check-circle';
+        } else if (type === 'error') {
+          bgColor = 'bg-red-500';
+          icon = 'fa-exclamation-circle';
+        } else if (type === 'warning') {
+          bgColor = 'bg-yellow-500';
+          icon = 'fa-exclamation-triangle';
+        }
+
+        notification.className = `fixed top-20 right-4 p-3 md:p-4 rounded-lg shadow-lg animate-fade-in z-50 flex items-center ${bgColor} text-white text-sm md:text-base`;
+        notification.innerHTML = `<i class="fas ${icon} mr-2"></i> ${message}`;
+        document.body.appendChild(notification);
+
+        // 自动消失动画
+        setTimeout(() => {
+          notification.classList.add('opacity-0', 'translate-x-10');
+          setTimeout(() => notification.remove(), 300);
+        }, 3000);
+      }
+
+      // 执行脚本的全局API
+      window.executeScript = async function (scriptCode) {
+        try {
+          // 将代码转换为base64
+          const base64 = btoa(unescape(encodeURIComponent(scriptCode)));
+
+          // 创建超时Promise
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('请求超时，请稍后重试')), 30000); // 30秒超时
+          });
+
+          // 发送请求并处理超时
+          const response = await Promise.race([
+            $gm.request('/api/command/exec_script', {
+              method: 'post',
+              data: { script: base64 }
+            }),
+            timeoutPromise
+          ]);
+
+          return response.data;
+        } catch (error) {
+          console.error('脚本执行失败:', error);
+          showNotification(`执行失败: ${error.message}`, 'error');
+          throw error;
+        }
+      }
+
+      // 原有GM SDK初始化代码
+      /*
+      window.$gm
+        .request('/api/center/check_status', {
+          method: 'post',
+          data: {
+            app_name: window?.$gm?.name,
+            version: window?.$gm?.version,
+            communication_type: 'socket',
+          },
+        });
+
+      $gm.childRectListener((res) => {
+        const { width, height } = res;
+        console.log('实时获取应用窗口尺寸，宽：' + width + '，高：' + height);
+      });
+      */
+    });
+  </script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const tableBody = document.querySelector('table tbody');
+      const paginationInfo = document.querySelector('.card-footer .text-xs');
+      const paginationButtons = document.querySelectorAll('.card-footer button');
+      let allTasks = [];
+      let currentPage = 1;
+      const pageSize = 4;
+
+      async function loadCrontabTasks() {
+        try {
+          const data = await window.executeScript("cd /.__gmssh/plugin/ariatrax/crontab/app/www/script && bash ./get_list.sh");
+          const parsed = JSON.parse(data);
+
+          if (!parsed.crontab || parsed.crontab.length === 0) {
+            tableBody.innerHTML = `
+          <tr class="task-row">
+            <td colspan="6" class="p-4 text-center text-gray-500 dark:text-gray-400">
+              <i class="fas fa-info-circle mr-2 text-blue-400"></i>未配置自动脚本
+            </td>
+          </tr>`;
+            paginationInfo.textContent = '';
+            paginationButtons.forEach(btn => btn.classList.add('hidden'));
+            return;
+          }
+
+          allTasks = parsed.crontab;
+          currentPage = 1;
+          renderPage(currentPage);
+        } catch (err) {
+          console.error('加载任务失败:', err);
+          tableBody.innerHTML = `
+        <tr class="task-row">
+          <td colspan="6" class="p-4 text-center text-red-500 dark:text-red-400">
+            <i class="fas fa-times-circle mr-2"></i>加载任务失败，请检查脚本或网络
+          </td>
+        </tr>`;
+        }
+      }
+
+      function renderPage(page) {
+        tableBody.innerHTML = '';
+
+        const start = (page - 1) * pageSize;
+        const pageTasks = allTasks.slice(start, start + pageSize);
+
+        pageTasks.forEach(task => {
+          const { minute, hour, day, month, weekday, command } = task;
+          const cronExpr = `${minute} ${hour} ${day} ${month} ${weekday}`;
+          const taskName = command.split(' ')[0];
+          const statusTag = `
+        <span class="status-badge bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2.5 py-1 rounded-full text-xs md:text-sm font-medium inline-flex items-center whitespace-nowrap">
+          <span class="w-2 h-2 bg-green-500 rounded-full mr-1.5 animate-pulse-slow"></span>运行中
+        </span>`;
+
+          const row = document.createElement('tr');
+          row.className = 'task-row bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700';
+          row.innerHTML = `
+        <td class="p-3 text-center">
+          <input type="checkbox" class="form-checkbox rounded text-blue-500 border-gray-300 dark:border-gray-600 task-checkbox">
+        </td>
+        <td class="p-3 font-medium text-gray-800 dark:text-gray-200 flex items-center">
+          <i class="fas fa-code text-indigo-400 mr-2"></i>
+          <span class="truncate max-w-xs">${taskName}</span>
+        </td>
+        <td class="p-3">
+          <code class="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs md:text-sm font-mono">${cronExpr}</code>
+        </td>
+        <td class="p-3 max-w-xs">
+          <div class="text-truncate dark:text-gray-300" title="${command}">${command}</div>
+        </td>
+        <td class="p-3">${statusTag}</td>
+        <td class="p-3">
+          <div class="flex space-x-1.5">
+            <button class="btn bg-blue-500 hover:bg-blue-600 text-white p-1.5 md:p-2 rounded-lg" title="编辑"><i class="fas fa-pencil-alt text-xs md:text-sm"></i></button>
+            <button class="btn bg-purple-500 hover:bg-purple-600 text-white p-1.5 md:p-2 rounded-lg" title="查看日志"><i class="fas fa-history text-xs md:text-sm"></i></button>
+            <button class="btn bg-yellow-500 hover:bg-yellow-600 text-white p-1.5 md:p-2 rounded-lg" title="暂停"><i class="fas fa-pause text-xs md:text-sm"></i></button>
+          </div>
+        </td>`;
+          tableBody.appendChild(row);
+        });
+
+        const totalPages = Math.ceil(allTasks.length / pageSize);
+        paginationInfo.innerHTML = `显示 <span class="font-medium">${start + 1}-${Math.min(start + pageSize, allTasks.length)}</span> 共 <span class="font-medium">${allTasks.length}</span> 个任务`;
+
+        paginationButtons.forEach(btn => btn.classList.remove('hidden'));
+        paginationButtons[0].disabled = page === 1;
+        paginationButtons[3].disabled = page === totalPages;
+
+        paginationButtons[1].textContent = page;
+        paginationButtons[2].textContent = page + 1 <= totalPages ? page + 1 : '';
+        paginationButtons[2].classList.toggle('hidden', page + 1 > totalPages);
+      }
+
+      paginationButtons[0].addEventListener('click', () => {
+        if (currentPage > 1) renderPage(--currentPage);
+      });
+      paginationButtons[2].addEventListener('click', () => {
+        if ((currentPage + 1) <= Math.ceil(allTasks.length / pageSize)) renderPage(++currentPage);
+      });
+
+      await loadCrontabTasks();
+    });
+
+    // 动态统计数量
+    function updateStatsDisplay() {
+      const total = allTasks.length;
+      const running = allTasks.length; // 假设全部是运行中
+      const paused = 0; // 可扩展判断
+      const failed = 0; // 可扩展判断
+
+      document.querySelector('.border-blue-500 h3').textContent = total;
+      document.querySelector('.border-green-500 h3').textContent = running;
+      document.querySelector('.border-yellow-500 h3').textContent = paused;
+      document.querySelector('.border-red-500 h3').textContent = failed;
+    }
+
+    // 注入新增任务执行逻辑
+    function hookAddTaskModal() {
+      const modalSaveBtn = document.querySelector('.fixed .btn.bg-blue-500');
+      if (!modalSaveBtn) return;
+
+      modalSaveBtn.addEventListener('click', async () => {
+        const inputs = document.querySelectorAll('.fixed input[type="text"]');
+        const textarea = document.querySelector('.fixed textarea');
+        const taskName = inputs[0].value.trim();
+        const iconClass = inputs[1].value.trim();
+        const cronExpr = inputs[2].value.trim();
+        const command = textarea.value.trim();
+
+        if (!taskName || !cronExpr || !command) return alert("请填写完整任务信息");
+
+        const [minute, hour, day, month, weekday] = cronExpr.split(" ");
+        const newTask = {
+          icon: iconClass || "fa-circle",
+          name: taskName,
+          minute, hour, day, month, weekday,
+          command
+        };
+
+        try {
+          await window.executeScript(`cd /.__gmssh/plugin/ariatrax/crontab/app/www/script && bash ./new.sh '${JSON.stringify(newTask)}'`);
+          showNotification("任务新增成功", "success");
+          location.reload(); // 重新加载列表和统计
+        } catch (e) {
+          showNotification("新增失败", "error");
+        }
+      });
+    }
+
+    // 调用新增任务弹窗后钩子
+    const origAddTask = document.getElementById('add-task').onclick;
+    document.getElementById('add-task').addEventListener('click', () => {
+      setTimeout(hookAddTaskModal, 300);
+    });
+  </script>
+
+</body>
+
+</html>
